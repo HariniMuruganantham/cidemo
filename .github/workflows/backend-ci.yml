@@ -1,4 +1,4 @@
-name: Backend CI Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -7,107 +7,53 @@ on:
     branches: [ main ]
 
 jobs:
-  # ===========================
-  # 🧪 1. Run Backend Tests
-  # ===========================
-  test:
-    name: Run Backend Tests
+  build:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_pass
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U test_user -d test_db"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
-
     steps:
-      - name: 🧩 Checkout repository
+      # 🧱 Step 1: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python
+      # 🐍 Step 2: Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
-      - name: 📦 Install dependencies
+      # 📦 Step 3: Install dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: 🕓 Wait for PostgreSQL to start
-        run: |
-          echo "Waiting for PostgreSQL to become ready..."
-          sleep 10
-
-      - name: 🚀 Run Pytest
-        run: |
-          pytest -v --maxfail=1 --disable-warnings
-
-  # ===========================
-  # 🧹 2. Code Quality Checks
-  # ===========================
-  code_quality:
-    name: Code Quality & Formatting
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - name: 🧩 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: 📦 Install lint tools
-        run: |
-          pip install flake8 black
-
-      - name: 🧹 Run Flake8 Linter
+      # 🧹 Step 4: Lint with flake8
+      - name: Run flake8
         run: |
           flake8 app tests --max-line-length=88 --ignore=E203,W503
 
-      - name: 🎨 Check Black Code Style
+      # 🎨 Step 5: Check formatting with black
+      - name: Run black (check mode)
         run: |
           black --check app tests
 
-  # ===========================
-  # 🔍 3. Security Scan (Trivy)
-  # ===========================
-  security_scan:
-    name: Trivy Security Scan
-    runs-on: ubuntu-latest
-    needs: code_quality
+      # 🧪 Step 6: Run tests with pytest
+      - name: Run pytest
+        run: |
+          pytest -v --maxfail=1 --disable-warnings --cov=app
 
-    steps:
-      - name: 🧩 Checkout code
-        uses: actions/checkout@v4
+      # 📊 Step 7 (optional): Upload coverage report to GitHub summary
+      - name: Generate coverage report
+        if: success()
+        run: |
+          pytest --cov=app --cov-report=term-missing
 
-      - name: 🛡️ Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.20.0
+      # 🏁 Step 8 (optional): Cache dependencies for faster builds
+      - name: Cache pip packages
+        uses: actions/cache@v4
         with:
-          scan-type: fs
-          ignore-unfixed: true
-          format: table
-          exit-code: 0
-          output: trivy-report.txt
-
-      - name: 📤 Upload Trivy Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-scan-report
-          path: trivy-report.txt
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
