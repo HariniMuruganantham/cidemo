@@ -5,3 +5,4 @@ Simple Flask backend used to demonstrate a full CI pipeline:
 - Coverage reporting
 - Trivy security scanning
 - PostgreSQL test DB in CI
+-testing db

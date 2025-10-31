@@ -7,81 +7,72 @@ on:
     branches: [ main ]
 
 jobs:
-  backend-ci:
+  build-and-test:
+    name: Build, Lint, Test, Coverage, Security Scan
     runs-on: ubuntu-latest
 
     services:
-      db:
-        image: postgres:13
+      postgres:
+        image: postgres:15
         env:
-          POSTGRES_USER: ci_user
-          POSTGRES_PASSWORD: ci_pass
-          POSTGRES_DB: ci_test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U ci_user -d ci_test_db"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     steps:
-      # Step 1: Checkout code
-      - name: Checkout repository
+      # 1️⃣ Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Python
+      # 2️⃣ Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
-      # Step 3: Install dependencies
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install flake8 black pytest pytest-cov
+          pip install -r requirements.txt -r requirements-dev.txt
 
-      # Step 4: Lint with flake8
-      - name: Lint code with flake8
+      # 4️⃣ Code Quality - flake8
+      - name: Run flake8 lint
         run: |
           flake8 app tests --max-line-length=88 --ignore=E203,W503
 
-      # Step 5: Format check with black
-      - name: Check formatting with black
-        run: |
-          black --check app tests
+      # 5️⃣ Code Quality - black format check
+      - name: Run black format check
+        run: black --check app tests
 
-      # Step 6: Run tests with coverage
-      - name: Run tests with pytest and coverage
-        env:
-          DATABASE_URL: postgres://ci_user:ci_pass@localhost:5432/ci_test_db
+      # 6️⃣ Run tests with coverage
+      - name: Run pytest with coverage
         run: |
-          pytest --cov=app --cov-report=xml --disable-warnings
+          pytest --maxfail=1 --disable-warnings --cov=app --cov-report=xml
 
-      # Step 7: Upload coverage report
+      # 7️⃣ Upload coverage to Codecov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
-          flags: backend
           fail_ci_if_error: true
 
-      # Step 8: Security scan with Trivy
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.20.0
+      # 8️⃣ Security Scan using Trivy
+      - name: Security Scan with Trivy
+        uses: aquasecurity/trivy-action@master
         with:
-          scan-type: fs
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
-          format: table
-          output: trivy-report.txt
-
-      # Step 9: Upload Trivy report as artifact
-      - name: Upload Trivy report
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-report
-          path: trivy-report.txt
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'

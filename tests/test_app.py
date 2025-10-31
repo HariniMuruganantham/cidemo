@@ -1,11 +1,12 @@
-# tests/test_app.py
-
 from app import create_app
+from app.models import db, User
 
 
-def test_home_route():
+def test_user_creation():
     app = create_app()
-    client = app.test_client()
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json == {"message": "checking dummy pr"}
+    with app.app_context():
+        user = User(name="TestUser")
+        db.session.add(user)
+        db.session.commit()
+        fetched = User.query.first()
+        assert fetched.name == "TestUser"
