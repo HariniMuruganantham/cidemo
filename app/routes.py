@@ -7,4 +7,4 @@ main = Blueprint("main", __name__)
 
 @main.route("/")
 def home():
-    return jsonify({"message": "Hello from CI demo!"})
+    return jsonify({"message": "checking dummy pr"})
